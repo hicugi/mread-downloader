@@ -67,11 +67,13 @@ const getImages = async (url, dirPath) => {
     dir = dir.substring(dir.lastIndexOf("/") + 1).replace("chapter-", "");
     const dirPath = `./export/${dir}`;
 
-    if (fs.existsSync(dirPath) && fs.existsSync(`${dirPath}/done`)) {
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath);
+    }
+    if (fs.existsSync(`${dirPath}/done`)) {
       continue;
     }
 
-    fs.mkdirSync(dirPath);
     await getImages(chapter, dirPath);
 
     await new Promise((ok) => setTimeout(ok, 500));
