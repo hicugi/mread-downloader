@@ -82,7 +82,13 @@ const getImages = async (url, dirPath) => {
     );
   });
 
-  for (const chapter of chapters) {
+  for (let i = 0; i < chapters.length; i++) {
+    const chapter = chapters[i];
+
+    console.log(
+      `${((i + 1) / (chapters.length / 100)).toFixed(2)}% ${chapter}`
+    );
+
     let dir = chapter.replace(/\/$/, "");
     dir = dir.substring(dir.lastIndexOf("/") + 1).replace("chapter-", "");
     const dirPath = `./export/${dir}`;
