@@ -1,0 +1,7 @@
+{
+  "type": "module",
+  "main": "src/index.js",
+  "dependencies": {
+    "puppeteer": "^21.1.1"
+  }
+}
