@@ -26,19 +26,18 @@ const getImages = async (url, dirPath) => {
   const page = await browser.newPage();
   await page.setViewport({ width: 1, height: 1 });
 
-  let counter = 0;
-  page.on("response", async (response) => {
-    const url = response.url();
-    const matches = /.*\.(jpg|png|svg|gif)$/.exec(url);
-    if (matches && matches.length === 2 && url.startsWith(IMAGE_START_WITH)) {
-      const extension = matches[1];
-      const buffer = await response.buffer();
+  const images = {};
 
-      counter += 1;
-      const filePath = `${dirPath}/${counter}.${extension}`;
-      if (!fs.existsSync(filePath)) {
-        fs.writeFileSync(filePath, buffer, "base64");
-      }
+  page.on("response", async (response) => {
+    const fileUrl = response.url();
+    const matches = /.*\.(jpg|jpeg|png|gif)$/.exec(fileUrl);
+
+    if (
+      matches &&
+      matches.length === 2 &&
+      fileUrl.startsWith(IMAGE_START_WITH)
+    ) {
+      images[fileUrl] = await response.buffer();
     }
   });
 
@@ -46,6 +45,27 @@ const getImages = async (url, dirPath) => {
     waitUntil: "networkidle2",
     timeout: 0,
   });
+
+  let counter = 0;
+  const domLinks = await page.evaluate(() =>
+    Array.from(document.querySelectorAll(".chapter-video-frame img"), (a) =>
+      a.getAttribute("src")
+    )
+  );
+
+  for (const imgUrl of domLinks) {
+    if (!images[imgUrl]) {
+      throw new Error(`Image not found: ${imgUrl}`);
+    }
+
+    counter += 1;
+    const filePath = `${dirPath}/${counter}.${imgUrl.substring(
+      imgUrl.lastIndexOf(".") + 1
+    )}`;
+    if (!fs.existsSync(filePath)) {
+      fs.writeFileSync(filePath, images[imgUrl], "base64");
+    }
+  }
 
   if (counter) {
     fs.writeFileSync(`${dirPath}/done`, Buffer.from(String(counter)));
