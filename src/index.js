@@ -48,7 +48,7 @@ const getImages = async (url, dirPath) => {
   });
 
   if (counter) {
-    fs.writeFileSync(`${dirPath}/done`, counter);
+    fs.writeFileSync(`${dirPath}/done`, Buffer.from(String(counter)));
   }
   await browser.close();
 };
