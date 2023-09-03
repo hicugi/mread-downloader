@@ -2,7 +2,8 @@ import puppeteer from "puppeteer";
 import fs from "fs";
 
 const url = "https://manhuaplus.com/manga/tales-of-demons-and-gods01/";
-const IMAGE_START_WITH = "https://cdn.manhuaplus.com/";
+
+const sleep = (t) => new Promise((ok) => setTimeout(ok, t));
 
 const getPage = async (url, callback) => {
   const browser = await puppeteer.launch({ headless: false });
@@ -30,13 +31,9 @@ const getImages = async (url, dirPath) => {
 
   page.on("response", async (response) => {
     const fileUrl = response.url();
-    const matches = /.*\.(jpg|jpeg|png|gif)$/.exec(fileUrl);
+    const matches = /.*\.(jpg|jpeg|png|gif)$/i.exec(fileUrl);
 
-    if (
-      matches &&
-      matches.length === 2 &&
-      fileUrl.startsWith(IMAGE_START_WITH)
-    ) {
+    if (matches && matches.length === 2) {
       images[fileUrl] = await response.buffer();
     }
   });
@@ -55,7 +52,9 @@ const getImages = async (url, dirPath) => {
 
   for (const imgUrl of domLinks) {
     if (!images[imgUrl]) {
-      throw new Error(`Image not found: ${imgUrl}`);
+      const msg = `Image not found: ${imgUrl}`;
+      console.error(msg);
+      throw new Error(msg);
     }
 
     counter += 1;
@@ -101,7 +100,6 @@ const getImages = async (url, dirPath) => {
     }
 
     await getImages(chapter, dirPath);
-
-    await new Promise((ok) => setTimeout(ok, 500));
+    await sleep(500);
   }
 })();
