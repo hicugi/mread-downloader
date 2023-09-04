@@ -22,6 +22,10 @@ const getPage = async (url, callback) => {
   return data;
 };
 
+const formatImgLink = (url) => {
+  return url.replace(/(#|\?).*$/, "");
+};
+
 const getImages = async (url, dirPath) => {
   const browser = await puppeteer.launch({ headless: false });
   const page = await browser.newPage();
@@ -34,7 +38,7 @@ const getImages = async (url, dirPath) => {
     const matches = /.*\.(jpg|jpeg|png|gif)$/i.exec(fileUrl);
 
     if (matches && matches.length === 2) {
-      images[fileUrl] = await response.buffer();
+      images[formatImgLink(fileUrl)] = await response.buffer();
     }
   });
 
@@ -50,7 +54,8 @@ const getImages = async (url, dirPath) => {
     )
   );
 
-  for (const imgUrl of domLinks) {
+  for (const link of domLinks) {
+    const imgUrl = formatImgLink(link);
     if (!images[imgUrl]) {
       const msg = `Image not found: ${imgUrl}`;
       console.error(msg);
