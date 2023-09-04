@@ -33,14 +33,15 @@ const getImages = async (url, dirPath) => {
 
   const images = {};
 
-  page.on("response", async (response) => {
+  const responseCallback = async (response) => {
     const fileUrl = response.url();
-    const matches = /.*\.(jpg|jpeg|png|gif)$/i.exec(fileUrl);
+    const matches = /.*\.(jpg|jpeg|png|gif)$/i.exec(formatImgLink(fileUrl));
 
     if (matches && matches.length === 2) {
       images[formatImgLink(fileUrl)] = await response.buffer();
     }
-  });
+  };
+  page.on("response", responseCallback);
 
   await page.goto(url, {
     waitUntil: "networkidle2",
