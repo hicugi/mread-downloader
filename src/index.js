@@ -1,7 +1,18 @@
 import puppeteer from "puppeteer";
 import fs from "fs";
+import { domain } from "./config.js";
 
-const url = "https://manhuaplus.com/manga/tales-of-demons-and-gods01/";
+const [, , mainDir, argUrl] = process.argv;
+
+const mainDirPath = `export/${mainDir}`;
+
+const prevInfo = [
+  `Parsing from: ${argUrl}`,
+  `Exporting to next dir: ${mainDirPath}`,
+];
+console.log(prevInfo.join("\n"));
+
+fs.mkdirSync(mainDirPath, { recursive: true });
 
 const sleep = (t) => new Promise((ok) => setTimeout(ok, t));
 
@@ -26,7 +37,7 @@ const formatImgLink = (url) => {
   return url.replace(/(#|\?).*$/, "");
 };
 
-const getImages = async (url, dirPath) => {
+const getImages = async (pageUrl, url, dirPath) => {
   const browser = await puppeteer.launch({ headless: false });
   const page = await browser.newPage();
   await page.setViewport({ width: 1, height: 1 });
@@ -49,10 +60,12 @@ const getImages = async (url, dirPath) => {
   });
 
   let counter = 0;
-  const domLinks = await page.evaluate(() =>
-    Array.from(document.querySelectorAll(".chapter-video-frame img"), (a) =>
-      a.getAttribute("src")
-    )
+  const domLinks = await page.evaluate(
+    (selector) =>
+      Array.from(document.querySelectorAll(selector), (a) =>
+        a.getAttribute("src")
+      ),
+    domain[pageUrl.host].images
   );
 
   for (const link of domLinks) {
@@ -79,11 +92,15 @@ const getImages = async (url, dirPath) => {
 };
 
 (async () => {
-  const chapters = await getPage(url, async (page) => {
-    return await page.evaluate(() =>
-      Array.from(document.querySelectorAll(".wp-manga-chapter a[href]"), (a) =>
-        a.getAttribute("href")
-      )
+  const pageUrl = new URL(argUrl);
+
+  const chapters = await getPage(pageUrl.href, async (page) => {
+    return await page.evaluate(
+      (selector) =>
+        Array.from(document.querySelectorAll(selector), (a) =>
+          a.getAttribute("href")
+        ),
+      domain[pageUrl.host].chapters
     );
   });
 
@@ -96,7 +113,7 @@ const getImages = async (url, dirPath) => {
 
     let dir = chapter.replace(/\/$/, "");
     dir = dir.substring(dir.lastIndexOf("/") + 1).replace("chapter-", "");
-    const dirPath = `./export/${dir}`;
+    const dirPath = `${mainDirPath}/${dir}`;
 
     if (!fs.existsSync(dirPath)) {
       fs.mkdirSync(dirPath);
@@ -105,7 +122,7 @@ const getImages = async (url, dirPath) => {
       continue;
     }
 
-    await getImages(chapter, dirPath);
+    await getImages(pageUrl, chapter, dirPath);
     await sleep(500);
   }
 })();
