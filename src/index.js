@@ -16,31 +16,50 @@ fs.mkdirSync(mainDirPath, { recursive: true });
 
 const sleep = (t) => new Promise((ok) => setTimeout(ok, t));
 
-const getPage = async (url, callback) => {
+const setup = async () => {
   const browser = await puppeteer.launch({ headless: false });
 
   const page = await browser.newPage();
-  await page.setViewport({ width: 1, height: 1 });
+  const session = await page.target().createCDPSession();
+  const { windowId } = await session.send("Browser.getWindowForTarget");
+  await session.send("Browser.setWindowBounds", {
+    windowId,
+    bounds: { windowState: "minimized" },
+  });
 
-  await page.goto(url, {
+  return {
+    browser,
+    page,
+  };
+};
+const goTo = async (page, url) => {
+  return await page.goto(url, {
     waitUntil: "networkidle2",
     timeout: 0,
   });
-
-  const data = await callback(page);
-  await browser.close();
-
-  return data;
 };
 
 const formatImgLink = (url) => {
   return url.replace(/(#|\?).*$/, "");
 };
 
-const getImages = async (pageUrl, url, dirPath) => {
-  const browser = await puppeteer.launch({ headless: false });
-  const page = await browser.newPage();
-  await page.setViewport({ width: 1, height: 1 });
+const getChapters = async (url, selector) => {
+  const { page, browser } = await setup();
+  await goTo(page, url);
+
+  const data = await page.evaluate(
+    (sel) =>
+      Array.from(document.querySelectorAll(sel), (a) => a.getAttribute("href")),
+    selector
+  );
+
+  await browser.close();
+
+  return data;
+};
+
+const downloadImages = async (url, selector, dirPath) => {
+  const { page, browser } = await setup();
 
   const images = {};
 
@@ -54,18 +73,15 @@ const getImages = async (pageUrl, url, dirPath) => {
   };
   page.on("response", responseCallback);
 
-  await page.goto(url, {
-    waitUntil: "networkidle2",
-    timeout: 0,
-  });
+  await goTo(page, url);
 
   let counter = 0;
   const domLinks = await page.evaluate(
-    (selector) =>
-      Array.from(document.querySelectorAll(selector), (a) =>
-        a.getAttribute("src")
+    (sel) =>
+      Array.from(document.querySelectorAll(sel), (img) =>
+        img.getAttribute("src")
       ),
-    domain[pageUrl.host].images
+    selector
   );
 
   for (const link of domLinks) {
@@ -88,21 +104,16 @@ const getImages = async (pageUrl, url, dirPath) => {
   if (counter) {
     fs.writeFileSync(`${dirPath}/done`, Buffer.from(String(counter)));
   }
+
   await browser.close();
 };
 
 (async () => {
   const pageUrl = new URL(argUrl);
+  const domainConfig = domain[pageUrl.host];
 
-  const chapters = await getPage(pageUrl.href, async (page) => {
-    return await page.evaluate(
-      (selector) =>
-        Array.from(document.querySelectorAll(selector), (a) =>
-          a.getAttribute("href")
-        ),
-      domain[pageUrl.host].chapters
-    );
-  });
+  const chapters = await getChapters(pageUrl.href, domainConfig.chapters);
+  chapters.reverse();
 
   for (let i = 0; i < chapters.length; i++) {
     const chapter = chapters[i];
@@ -122,7 +133,7 @@ const getImages = async (pageUrl, url, dirPath) => {
       continue;
     }
 
-    await getImages(pageUrl, chapter, dirPath);
+    await downloadImages(chapter, domainConfig.images, dirPath);
     await sleep(500);
   }
 })();
