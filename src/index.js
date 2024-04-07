@@ -65,7 +65,7 @@ const downloadImages = async (url, selector, dirPath) => {
 
   const responseCallback = async (response) => {
     const fileUrl = response.url();
-    const matches = /.*\.(jpg|jpeg|png|gif)$/i.exec(formatImgLink(fileUrl));
+    const matches = /.*\.(jpg|jpeg|png|gif|webp)$/i.exec(formatImgLink(fileUrl));
 
     if (matches && matches.length === 2) {
       images[formatImgLink(fileUrl)] = await response.buffer();
@@ -83,6 +83,7 @@ const downloadImages = async (url, selector, dirPath) => {
       ),
     selector
   );
+  sleep(10000);
 
   for (const link of domLinks) {
     const imgUrl = formatImgLink(link);
