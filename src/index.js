@@ -17,14 +17,15 @@ fs.mkdirSync(mainDirPath, { recursive: true });
 const sleep = (t) => new Promise((ok) => setTimeout(ok, t));
 
 const setup = async () => {
-  const browser = await puppeteer.launch({ headless: false });
+  const browser = await puppeteer.launch({ headless: true });
 
   const page = await browser.newPage();
   const session = await page.target().createCDPSession();
   const { windowId } = await session.send("Browser.getWindowForTarget");
   await session.send("Browser.setWindowBounds", {
     windowId,
-    bounds: { windowState: "minimized" },
+    bounds: {},
+    // bounds: { windowState: "minimized" },
   });
 
   return {
@@ -65,9 +66,12 @@ const downloadImages = async (url, selector, dirPath) => {
 
   const responseCallback = async (response) => {
     const fileUrl = response.url();
-    const matches = /.*\.(jpg|jpeg|png|gif|webp)$/i.exec(formatImgLink(fileUrl));
+    const status = response.status();
+    const matches = /.*\.(jpg|jpeg|png|gif|webp)$/i.exec(
+      formatImgLink(fileUrl)
+    );
 
-    if (matches && matches.length === 2) {
+    if (matches && matches.length === 2 && status < 300 && status > 399) {
       images[formatImgLink(fileUrl)] = await response.buffer();
     }
   };
@@ -125,6 +129,11 @@ const downloadImages = async (url, selector, dirPath) => {
 
     let dir = chapter.replace(/\/$/, "");
     dir = dir.substring(dir.lastIndexOf("/") + 1).replace("chapter-", "");
+
+    if (domainConfig.formatChapter) {
+      dir = domainConfig.formatChapter(dir);
+    }
+
     const dirPath = `${mainDirPath}/${dir}`;
 
     if (!fs.existsSync(dirPath)) {
