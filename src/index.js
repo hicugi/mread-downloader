@@ -35,7 +35,8 @@ const setup = async () => {
 };
 const goTo = async (page, url) => {
   return await page.goto(url, {
-    waitUntil: "networkidle2",
+    // waitUntil: "networkidle2",
+    waitUntil: "domcontentloaded",
     timeout: 0,
   });
 };
@@ -62,24 +63,47 @@ const getChapters = async (url, selector) => {
 const downloadImages = async (url, selector, dirPath) => {
   const { page, browser } = await setup();
 
-  const images = {};
+  const images = [];
+  let downloadedImgCount = 0;
 
-  const responseCallback = async (response) => {
+  let isBodyReady = false;
+  let responseCount = 0;
+
+  page.on("response", async (response) => {
     const fileUrl = response.url();
-    const status = response.status();
-    const matches = /.*\.(jpg|jpeg|png|gif|webp)$/i.exec(
-      formatImgLink(fileUrl)
-    );
+    const imgUrl = formatImgLink(fileUrl);
 
-    if (matches && matches.length === 2 && status < 300 && status > 399) {
-      images[formatImgLink(fileUrl)] = await response.buffer();
-    }
-  };
-  page.on("response", responseCallback);
+    const matches = /.*\.(jpg|jpeg|png|gif|webp)$/i.exec(imgUrl);
+
+    if (!matches || matches.length !== 2) return;
+
+    responseCount += 1;
+
+    const inetrval = setInterval(async () => {
+      if (!isBodyReady) return;
+      clearInterval(inetrval);
+
+      const imgIndex = images.findIndex((img) => img === imgUrl);
+
+      if (imgIndex === -1) {
+        responseCount -= 1;
+        return;
+      }
+
+      const filePath = `${dirPath}/${imgIndex + 1}.${imgUrl.substring(
+        imgUrl.lastIndexOf(".") + 1
+      )}`;
+      if (!fs.existsSync(filePath)) {
+        fs.writeFileSync(filePath, await response.buffer(), "base64");
+      }
+
+      downloadedImgCount += 1;
+      responseCount -= 1;
+    }, 300);
+  });
 
   await goTo(page, url);
 
-  let counter = 0;
   const domLinks = await page.evaluate(
     (sel) =>
       Array.from(document.querySelectorAll(sel), (img) =>
@@ -87,28 +111,32 @@ const downloadImages = async (url, selector, dirPath) => {
       ),
     selector
   );
-  sleep(10000);
 
   for (const link of domLinks) {
     const imgUrl = formatImgLink(link);
-    if (!images[imgUrl]) {
-      const msg = `Image not found: ${imgUrl}`;
-      console.error(msg);
-      throw new Error(msg);
-    }
+    images.push(imgUrl);
+  }
+  isBodyReady = true;
+  console.log("Images to download:", images.length);
 
-    counter += 1;
-    const filePath = `${dirPath}/${counter}.${imgUrl.substring(
-      imgUrl.lastIndexOf(".") + 1
-    )}`;
-    if (!fs.existsSync(filePath)) {
-      fs.writeFileSync(filePath, images[imgUrl], "base64");
-    }
+  await new Promise((resolve) => {
+    const interval = setInterval(() => {
+      console.log("Waiting for responses...", responseCount);
+
+      if (responseCount === 0) {
+        clearInterval(interval);
+        resolve();
+      }
+    }, 3000);
+  });
+
+  if (downloadedImgCount !== images.length) {
+    const text = missedImages.map(([img]) => img).join("; ");
+    throw new Error(`Next images are missing: ${text}`);
   }
 
-  if (counter) {
-    fs.writeFileSync(`${dirPath}/done`, Buffer.from(String(counter)));
-  }
+  fs.writeFileSync(`${dirPath}/done`, Buffer.from(String(images.length)));
+  await sleep(5000);
 
   await browser.close();
 };
