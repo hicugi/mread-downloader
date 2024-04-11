@@ -2,7 +2,15 @@ import puppeteer from "puppeteer";
 import fs from "fs";
 import { domain } from "./config.js";
 
-const [, , mainDir, argUrl] = process.argv;
+const OPEN_BROWSER = false;
+const NETWORK_PARPAM =
+  // "networkidle2";
+  "domcontentloaded";
+
+let [, , mainDir, argUrl] = process.argv;
+if (argUrl[0] === '"') {
+  argUrl = argUrl.substring(1, argUrl.length - 1);
+}
 
 const mainDirPath = `export/${mainDir}`;
 
@@ -17,7 +25,7 @@ fs.mkdirSync(mainDirPath, { recursive: true });
 const sleep = (t) => new Promise((ok) => setTimeout(ok, t));
 
 const setup = async () => {
-  const browser = await puppeteer.launch({ headless: true });
+  const browser = await puppeteer.launch({ headless: OPEN_BROWSER === false });
 
   const page = await browser.newPage();
   const session = await page.target().createCDPSession();
@@ -35,8 +43,7 @@ const setup = async () => {
 };
 const goTo = async (page, url) => {
   return await page.goto(url, {
-    // waitUntil: "networkidle2",
-    waitUntil: "domcontentloaded",
+    waitUntil: NETWORK_PARPAM,
     timeout: 0,
   });
 };
@@ -103,6 +110,7 @@ const downloadImages = async (url, selector, dirPath) => {
   });
 
   await goTo(page, url);
+  await sleep(3000);
 
   const domLinks = await page.evaluate(
     (sel) =>
@@ -131,8 +139,7 @@ const downloadImages = async (url, selector, dirPath) => {
   });
 
   if (downloadedImgCount !== images.length) {
-    const text = missedImages.map(([img]) => img).join("; ");
-    throw new Error(`Next images are missing: ${text}`);
+    throw new Error(`Some images are missing`);
   }
 
   fs.writeFileSync(`${dirPath}/done`, Buffer.from(String(images.length)));
@@ -149,7 +156,11 @@ const downloadImages = async (url, selector, dirPath) => {
   chapters.reverse();
 
   for (let i = 0; i < chapters.length; i++) {
-    const chapter = chapters[i];
+    let chapter = chapters[i];
+
+    if (!chapter.match(/^https?\:\/\//)) {
+      chapter = `${pageUrl.origin}/${chapter.replace(/^\//, "")}`;
+    }
 
     console.log(
       `${((i + 1) / (chapters.length / 100)).toFixed(2)}% ${chapter}`
