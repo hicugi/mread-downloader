@@ -1,5 +1,6 @@
 import puppeteer from "puppeteer";
 import fs from "fs";
+import https from "https";
 import { domain } from "./config.js";
 
 const OPEN_BROWSER = false;
@@ -67,63 +68,98 @@ const getChapters = async (url, selector) => {
   return data;
 };
 
-const downloadImages = async (url, selector, dirPath) => {
+const downloadImages = async (url, dirPath, config) => {
   const { page, browser } = await setup();
 
-  const images = [];
+  let images = [];
   let downloadedImgCount = 0;
 
   let isBodyReady = false;
   let responseCount = 0;
 
-  page.on("response", async (response) => {
-    const fileUrl = response.url();
-    const imgUrl = formatImgLink(fileUrl);
+  if (config.isDirectDownload) {
+    responseCount = 1;
 
-    const matches = /.*\.(jpg|jpeg|png|gif|webp)$/i.exec(imgUrl);
-
-    if (!matches || matches.length !== 2) return;
-
-    responseCount += 1;
-
-    const inetrval = setInterval(async () => {
+    const inetrval = setInterval(() => {
       if (!isBodyReady) return;
       clearInterval(inetrval);
 
-      const imgIndex = images.findIndex((img) => img === imgUrl);
+      responseCount = images.length;
 
-      if (imgIndex === -1) {
-        responseCount -= 1;
-        return;
+      for (let imgUrl of images) {
+        const imgIndex = images.findIndex((img) => img === imgUrl);
+
+        const fileName = formatImgLink(imgUrl);
+        const filePath = `${dirPath}/${imgIndex + 1}${fileName.substring(
+          fileName.lastIndexOf(".")
+        )}`;
+
+        https.get(imgUrl, (res) => {
+          const fileStream = fs.createWriteStream(filePath);
+          res.pipe(fileStream);
+
+          res.on("end", () => {
+            downloadedImgCount += 1;
+            responseCount -= 1;
+            fileStream.close();
+          });
+        });
       }
-
-      const filePath = `${dirPath}/${imgIndex + 1}.${imgUrl.substring(
-        imgUrl.lastIndexOf(".") + 1
-      )}`;
-      if (!fs.existsSync(filePath)) {
-        fs.writeFileSync(filePath, await response.buffer(), "base64");
-      }
-
-      downloadedImgCount += 1;
-      responseCount -= 1;
     }, 300);
-  });
+  } else {
+    page.on("response", async (response) => {
+      const fileUrl = response.url();
+      const imgUrl = formatImgLink(fileUrl);
+
+      const matches = /.*\.(jpg|jpeg|png|gif|webp)$/i.exec(imgUrl);
+
+      if (!matches || matches.length !== 2) return;
+
+      responseCount += 1;
+
+      const inetrval = setInterval(async () => {
+        if (!isBodyReady) return;
+        clearInterval(inetrval);
+
+        const imgIndex = images.findIndex((img) => img === imgUrl);
+
+        if (imgIndex === -1) {
+          responseCount -= 1;
+          return;
+        }
+
+        const filePath = `${dirPath}/${imgIndex + 1}.${imgUrl.substring(
+          imgUrl.lastIndexOf(".") + 1
+        )}`;
+        if (!fs.existsSync(filePath)) {
+          fs.writeFileSync(filePath, await response.buffer(), "base64");
+        }
+
+        downloadedImgCount += 1;
+        responseCount -= 1;
+      }, 300);
+    });
+  }
 
   await goTo(page, url);
-  await sleep(3000);
 
   const domLinks = await page.evaluate(
     (sel) =>
       Array.from(document.querySelectorAll(sel), (img) =>
         img.getAttribute("src")
       ),
-    selector
+    config.images
   );
 
-  for (const link of domLinks) {
-    const imgUrl = formatImgLink(link);
-    images.push(imgUrl);
+  if (config.getImagesFn !== undefined) {
+    images = await config.getImagesFn(page);
+  } else {
+    for (const link of domLinks) {
+      const imgUrl = formatImgLink(link);
+      images.push(imgUrl);
+    }
   }
+
   isBodyReady = true;
   console.log("Images to download:", images.length);
 
@@ -139,7 +175,9 @@ const downloadImages = async (url, selector, dirPath) => {
   });
 
   if (downloadedImgCount !== images.length) {
-    throw new Error(`Some images are missing`);
+    throw new Error(
+      `Some images are missing. Got ${downloadedImgCount} of ${images.length}`
+    );
   }
 
   fs.writeFileSync(`${dirPath}/done`, Buffer.from(String(images.length)));
@@ -182,7 +220,7 @@ const downloadImages = async (url, selector, dirPath) => {
       continue;
     }
 
-    await downloadImages(chapter, domainConfig.images, dirPath);
+    await downloadImages(chapter, dirPath, domainConfig);
     await sleep(500);
   }
 })();
