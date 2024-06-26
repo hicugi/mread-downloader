@@ -204,11 +204,13 @@ const downloadImages = async (url, dirPath, config) => {
       `${((i + 1) / (chapters.length / 100)).toFixed(2)}% ${chapter}`
     );
 
-    let dir = chapter.replace(/\/$/, "");
-    dir = dir.substring(dir.lastIndexOf("/") + 1).replace("chapter-", "");
+    let dir;
 
     if (domainConfig.formatChapter) {
-      dir = domainConfig.formatChapter(dir);
+      dir = domainConfig.formatChapter(chapter);
+    } else {
+      dir = chapter.replace(/\/$/, "");
+      dir = dir.substring(dir.lastIndexOf("/") + 1).replace("chapter-", "");
     }
 
     const dirPath = `${mainDirPath}/${dir}`;

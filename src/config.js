@@ -39,6 +39,9 @@ export const domain = {
     images: "#fotocontext .manga-img-placeholder > img[src]",
     isDirectDownload: true,
 
+    formatChapter: (link) => {
+      return link.replace(/.+vol/, "").replace("/", "-");
+    },
     getImagesFn: async (page) => {
       const html = await page.content();
 
