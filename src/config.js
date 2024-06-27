@@ -28,6 +28,18 @@ export const domain = {
       return res ? res[1] : chapter;
     },
   },
+  "www.webtoons.com": {
+    chapters: ".detail_lst ul a",
+    pagination: ".paginate a",
+    paginationMatch: /page=/,
+
+    formatChapter: (chapter) => {
+      const res = chapter.match(/episode-(\d+)/);
+      return res ? res[1] : chapter;
+    },
+
+    images: "#content img",
+  },
 
   // ru
   "remanga.org": {

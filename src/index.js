@@ -2,6 +2,7 @@ import puppeteer from "puppeteer";
 import fs from "fs";
 import https from "https";
 import { domain } from "./config.js";
+import { getFullLink } from "./helper/general.js";
 
 const OPEN_BROWSER = false;
 const NETWORK_PARPAM =
@@ -53,19 +54,73 @@ const formatImgLink = (url) => {
   return url.replace(/(#|\?).*$/, "");
 };
 
-const getChapters = async (url, selector) => {
-  const { page, browser } = await setup();
-  await goTo(page, url);
+const getChapters = async (url, domainConfig) => {
+  const getChapterLinks = async (url) => {
+    const { page, browser } = await setup();
+    await goTo(page, url);
 
-  const data = await page.evaluate(
-    (sel) =>
-      Array.from(document.querySelectorAll(sel), (a) => a.getAttribute("href")),
-    selector
-  );
+    const data = await page.evaluate(
+      (sel) =>
+        Array.from(document.querySelectorAll(sel), (a) =>
+          a.getAttribute("href")
+        ),
+      domainConfig.chapters
+    );
 
-  await browser.close();
+    await browser.close();
 
-  return data;
+    return data.map((v) => getFullLink(v, domainConfig.origin));
+  };
+
+  if (!domainConfig.pagination) {
+    return getChapterLinks(url);
+  }
+
+  const pages = [url];
+  const memoPages = {};
+  const result = new Set();
+
+  console.log("\nStarting to read pages...");
+
+  const getPaginationLinks = async (url) => {
+    const { page, browser } = await setup();
+    await goTo(page, url);
+
+    const data = await page.evaluate(
+      (sel) =>
+        Array.from(document.querySelectorAll(sel), (a) =>
+          a.getAttribute("href")
+        ),
+      domainConfig.pagination
+    );
+
+    await browser.close();
+
+    return data
+      .filter((link) => link.match(domainConfig.paginationMatch))
+      .map((v) => getFullLink(v, domainConfig.origin));
+  };
+
+  while (pages.length) {
+    const pageUrl = pages.shift();
+
+    if (memoPages[pageUrl]) {
+      continue;
+    }
+    memoPages[pageUrl] = true;
+
+    console.log(`- reading page: ${pageUrl}`);
+
+    const chapterLinks = await getChapterLinks(pageUrl);
+    for (const link of chapterLinks) {
+      result.add(link);
+    }
+
+    const nextPageLinks = await getPaginationLinks(pageUrl);
+    pages.push(...nextPageLinks);
+  }
+
+  return Array.from(result);
 };
 
 const downloadImages = async (url, dirPath, config) => {
@@ -189,16 +244,13 @@ const downloadImages = async (url, dirPath, config) => {
 (async () => {
   const pageUrl = new URL(argUrl);
   const domainConfig = domain[pageUrl.host];
+  domainConfig.origin = pageUrl.origin;
 
-  const chapters = await getChapters(pageUrl.href, domainConfig.chapters);
+  const chapters = await getChapters(pageUrl.href, domainConfig);
   chapters.reverse();
 
   for (let i = 0; i < chapters.length; i++) {
-    let chapter = chapters[i];
-
-    if (!chapter.match(/^https?\:\/\//)) {
-      chapter = `${pageUrl.origin}/${chapter.replace(/^\//, "")}`;
-    }
+    const chapter = chapters[i];
 
     console.log(
       `${((i + 1) / (chapters.length / 100)).toFixed(2)}% ${chapter}`
