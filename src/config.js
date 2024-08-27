@@ -24,7 +24,7 @@ export const domain = {
     chapters: ".su-expand-content .su-posts a",
     images: "#main .separator img",
     formatChapter: (chapter) => {
-      const res = chapter.match(/^\d+[\w-]+?(\d.*)/);
+      const res = chapter.match(/chapter-(.+?)\//);
       return res ? res[1] : chapter;
     },
   },
