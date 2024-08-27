@@ -38,7 +38,8 @@ export const domain = {
       return res ? res[1] : chapter;
     },
 
-    images: "#content img",
+    images: "#_imageList img",
+    scrollToBottom: true,
   },
 
   // ru

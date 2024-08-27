@@ -1,6 +1,7 @@
 import puppeteer from "puppeteer";
 import fs from "fs";
 import https from "https";
+import path from "path";
 import { domain } from "./config.js";
 import { getFullLink } from "./helper/general.js";
 
@@ -14,7 +15,13 @@ if (argUrl[0] === '"') {
   argUrl = argUrl.substring(1, argUrl.length - 1);
 }
 
+const puppeteerConfig = {};
+if (OPEN_BROWSER) {
+  puppeteerConfig.headless = false;
+}
+
 const mainDirPath = `export/${mainDir}`;
+const chaptersTempPath = path.join(mainDirPath, "chapters.json");
 
 const prevInfo = [
   `Parsing from: ${argUrl}`,
@@ -27,7 +34,7 @@ fs.mkdirSync(mainDirPath, { recursive: true });
 const sleep = (t) => new Promise((ok) => setTimeout(ok, t));
 
 const setup = async () => {
-  const browser = await puppeteer.launch({ headless: OPEN_BROWSER === false });
+  const browser = await puppeteer.launch(puppeteerConfig);
 
   const page = await browser.newPage();
   const session = await page.target().createCDPSession();
@@ -55,6 +62,10 @@ const formatImgLink = (url) => {
 };
 
 const getChapters = async (url, domainConfig) => {
+  if (domainConfig.paginationMatch && fs.existsSync(chaptersTempPath)) {
+    return JSON.parse(fs.readFileSync(chaptersTempPath));
+  }
+
   const getChapterLinks = async (url) => {
     const { page, browser } = await setup();
     await goTo(page, url);
@@ -120,7 +131,17 @@ const getChapters = async (url, domainConfig) => {
     pages.push(...nextPageLinks);
   }
 
-  return Array.from(result);
+  const arrResult = Array.from(result);
+
+  if (domainConfig.paginationMatch) {
+    fs.writeFile(
+      chaptersTempPath,
+      JSON.stringify(arrResult, null, 2),
+      () => {}
+    );
+  }
+
+  return arrResult;
 };
 
 const downloadImages = async (url, dirPath, config) => {
@@ -170,8 +191,6 @@ const downloadImages = async (url, dirPath, config) => {
 
       if (!matches || matches.length !== 2) return;
 
-      responseCount += 1;
-
       const inetrval = setInterval(async () => {
         if (!isBodyReady) return;
         clearInterval(inetrval);
@@ -179,7 +198,6 @@ const downloadImages = async (url, dirPath, config) => {
         const imgIndex = images.findIndex((img) => img === imgUrl);
 
         if (imgIndex === -1) {
-          responseCount -= 1;
           return;
         }
 
@@ -215,18 +233,45 @@ const downloadImages = async (url, dirPath, config) => {
     }
   }
 
+  if (!config.isDirectDownload) {
+    responseCount = images.length;
+  }
+
   isBodyReady = true;
   console.log("Images to download:", images.length);
 
+  if (config.scrollToBottom) {
+    await page.evaluate(() => {
+      window.scrollTo(0, document.body.scrollHeight);
+    });
+  }
+
+  const ATTEMPS_TO_WAIT = 5;
+  let attempsCount = 0;
+  let prevDownloadedImgCount = 0;
   await new Promise((resolve) => {
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       console.log("Waiting for responses...", responseCount);
 
-      if (responseCount === 0) {
-        clearInterval(interval);
-        resolve();
+      if (responseCount !== 0) return;
+
+      if (prevDownloadedImgCount !== downloadedImgCount) {
+        attempsCount = 0;
       }
-    }, 3000);
+      prevDownloadedImgCount = downloadedImgCount;
+
+      if (
+        attempsCount < ATTEMPS_TO_WAIT &&
+        downloadedImgCount !== images.length
+      ) {
+        await sleep(5000);
+        attempsCount += 1;
+        return;
+      }
+
+      clearInterval(interval);
+      resolve();
+    }, 1000);
   });
 
   if (downloadedImgCount !== images.length) {
@@ -236,7 +281,6 @@ const downloadImages = async (url, dirPath, config) => {
   }
 
   fs.writeFileSync(`${dirPath}/done`, Buffer.from(String(images.length)));
-  await sleep(5000);
 
   await browser.close();
 };
