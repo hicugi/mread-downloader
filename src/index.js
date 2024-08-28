@@ -251,9 +251,15 @@ const downloadImages = async (url, dirPath, config) => {
   let prevDownloadedImgCount = 0;
   await new Promise((resolve) => {
     const interval = setInterval(async () => {
-      console.log("Waiting for responses...", responseCount);
+      console.log(
+        `Waiting for responses... ${responseCount} images left, ${attempsCount} attemps`
+      );
 
-      if (responseCount !== 0) return;
+      if (responseCount === 0) {
+        clearInterval(interval);
+        resolve();
+        return;
+      }
 
       if (prevDownloadedImgCount !== downloadedImgCount) {
         attempsCount = 0;
@@ -261,7 +267,7 @@ const downloadImages = async (url, dirPath, config) => {
       prevDownloadedImgCount = downloadedImgCount;
 
       if (
-        attempsCount < ATTEMPS_TO_WAIT &&
+        attempsCount <= ATTEMPS_TO_WAIT &&
         downloadedImgCount !== images.length
       ) {
         await sleep(5000);

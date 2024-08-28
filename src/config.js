@@ -41,6 +41,19 @@ export const domain = {
     images: "#_imageList img",
     scrollToBottom: true,
   },
+  "ww2.jujustukaisen.com": {
+    chapters: "#Chapters_List > * ul li a",
+    images: "main .entry-content img[src^=http]",
+
+    formatChapter: (chapter) => {
+      const v = chapter
+        .split("/")
+        .at(-2)
+        .match(/chapter-(.+)$/);
+      return v ? v[1] : v;
+    },
+    scrollToBottom: true,
+  },
 
   // ru
   "remanga.org": {
