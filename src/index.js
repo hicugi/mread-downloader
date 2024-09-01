@@ -78,6 +78,15 @@ const getChapters = async (url, domainConfig) => {
       domainConfig.chapters
     );
 
+    await new Promise((ok) => {
+      const interval = setInterval(() => {
+        if (data.length !== 0) {
+          clearInterval(interval);
+          ok();
+        }
+      }, 300);
+    });
+
     await browser.close();
 
     return data.map((v) => getFullLink(v, domainConfig.origin));
