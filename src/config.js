@@ -42,7 +42,7 @@ export const domain = {
     scrollToBottom: true,
   },
   "ww2.jujustukaisen.com": {
-    chapters: "#Chapters_List > * ul li a",
+    chapters: "#Chapters_List > * ul li a[href]",
     images: "main .entry-content img[src^=http]",
 
     formatChapter: (chapter) => {
@@ -51,6 +51,19 @@ export const domain = {
         .at(-2)
         .match(/chapter-(.+)$/);
       return v ? v[1] : v;
+    },
+    scrollToBottom: true,
+  },
+  "w33.jujmanga.com": {
+    chapters: "#Chapters_List > * ul li a[href]",
+    images: "main .entry-content img[src^=http]",
+
+    formatChapter: (chapter) => {
+      const v = chapter
+        .split("/")
+        .at(-2)
+        .match(/chapter-(.+)$/);
+      return v ? v[1].replace(/-2$/, "") : v;
     },
     scrollToBottom: true,
   },
