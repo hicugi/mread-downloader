@@ -5,13 +5,13 @@ import puppeteer from "puppeteer";
 import { domain } from "../config.js";
 
 const EXPORT_DIR = "export";
-const OPEN_BROWSER = false;
+const OPEN_BROWSER = false; // true;
 const NETWORK_PARPAM =
   // "networkidle2";
   "domcontentloaded";
 
 export const getArgs = () => {
-  let [, , dir, argUrl] = process.argv;
+  let [, , dir, argUrl, ...list] = process.argv;
   if (argUrl && argUrl[0] === '"') {
     argUrl = argUrl.substring(1, argUrl.length - 1);
   }
@@ -30,7 +30,15 @@ export const getArgs = () => {
     throw new Error("Please provide manga dir");
   }
 
-  return [dir, argUrl];
+  const argParams = {};
+  for (let str of list) {
+    const key = str.substring(0, str.indexOf("="));
+    const val = str.substring(str.indexOf("=") + 1).replace(/^("|')$/g, "");
+
+    argParams[key] = val;
+  }
+
+  return [dir, argUrl, argParams];
 };
 
 export const getMangaDir = () => {

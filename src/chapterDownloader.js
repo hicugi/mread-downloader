@@ -4,6 +4,9 @@ import fs from "fs";
 
 import { getArgs, getConfig, setupBrowser, sleep } from "./helper/general.js";
 
+const ATTEMPS_TO_WAIT = 10;
+const ATTEMPT_DELAY = 20;
+
 const formatImgLink = (url) => {
   return url.replace(/(#|\?).*$/, "");
 };
@@ -12,6 +15,7 @@ const downloadImages = async (url, dirPath, config) => {
   const { page, browser, goTo } = await setupBrowser();
 
   let images = [];
+  let imagesDownloaded = {};
   let downloadedImgCount = 0;
 
   let isBodyReady = false;
@@ -39,6 +43,8 @@ const downloadImages = async (url, dirPath, config) => {
           res.pipe(fileStream);
 
           res.on("end", () => {
+            imagesDownloaded[imgUrl] = true;
+
             downloadedImgCount += 1;
             responseCount -= 1;
             fileStream.close();
@@ -72,6 +78,8 @@ const downloadImages = async (url, dirPath, config) => {
           fs.writeFileSync(filePath, await response.buffer(), "base64");
         }
 
+        imagesDownloaded[imgUrl] = true;
+
         downloadedImgCount += 1;
         responseCount -= 1;
       }, 300);
@@ -91,10 +99,13 @@ const downloadImages = async (url, dirPath, config) => {
   if (config.getImagesFn !== undefined) {
     images = await config.getImagesFn(page);
   } else {
+    const list = new Set();
     for (const link of domLinks) {
       const imgUrl = formatImgLink(link);
-      images.push(imgUrl);
+      if (!imgUrl) continue;
+      list.add(encodeURI(imgUrl));
     }
+    images = Array.from(list);
   }
 
   if (!config.isDirectDownload) {
@@ -110,7 +121,6 @@ const downloadImages = async (url, dirPath, config) => {
     });
   }
 
-  const ATTEMPS_TO_WAIT = 5;
   let attempsCount = 0;
   let prevDownloadedImgCount = 0;
   await new Promise((resolve) => {
@@ -134,17 +144,23 @@ const downloadImages = async (url, dirPath, config) => {
         attempsCount <= ATTEMPS_TO_WAIT &&
         downloadedImgCount !== images.length
       ) {
-        await sleep(5000);
+        await sleep(1000);
         attempsCount += 1;
         return;
       }
 
       clearInterval(interval);
       resolve();
-    }, 1000);
+    }, ATTEMPT_DELAY * 1000);
   });
 
   if (downloadedImgCount !== images.length) {
+    for (const img of images) {
+      if (!imagesDownloaded[img]) {
+        console.log(`- ${img}`);
+      }
+    }
+
     throw new Error(
       `Some images are missing. Got ${downloadedImgCount} of ${images.length}`
     );

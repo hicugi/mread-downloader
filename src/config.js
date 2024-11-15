@@ -67,9 +67,22 @@ export const domain = {
     },
     scrollToBottom: true,
   },
+  "ciorti.online": {
+    chapters: "#chapters-list a[href]",
+    images: "body > .main-width > .imgholder[src]",
+
+    formatChapter: (chapter) => {
+      const v = chapter.match(/chapter=(.+)/);
+      return v ? v[1] : chapter;
+    },
+  },
 
   // ru
   "remanga.org": {
+    chapters: "[class^='Chapters_container'] a[href]",
+    images: "main [class^='Image_placeholder'] #chapter-image",
+  },
+  "zz.readmanga.io": {
     chapters: "[class^='Chapters_container'] a[href]",
     images: "main [class^='Image_placeholder'] #chapter-image",
   },

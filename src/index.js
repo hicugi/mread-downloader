@@ -5,12 +5,13 @@ import {
   getArgs,
   getConfig,
   getFullLink,
+  getMangaDir,
   setupBrowser,
   sleep,
 } from "./helper/general.js";
 import { downloadChapter } from "./chapterDownloader.js";
 
-const [, argUrl] = getArgs();
+const [, argUrl, argParam] = getArgs();
 
 const mainDirPath = getMangaDir();
 const chaptersTempPath = path.join(mainDirPath, "chapters.json");
@@ -121,12 +122,20 @@ const getChapters = async (url, domainConfig) => {
   const chapters = await getChapters(domainConfig.url.href, domainConfig);
   // chapters.reverse();
 
+  let isActivated = argParam.after === undefined;
+  if (!isActivated) console.log(`Skip everything before ${argParam.after}`);
+
   for (let i = 0; i < chapters.length; i++) {
     const chapter = chapters[i];
 
     console.log(
       `${((i + 1) / (chapters.length / 100)).toFixed(2)}% ${chapter}`
     );
+
+    if (argParam.before && chapter.includes(argParam.before)) break;
+
+    isActivated = isActivated || chapter.includes(argParam.after);
+    if (!isActivated) continue;
 
     await downloadChapter(chapter, domainConfig);
     await sleep(500);
