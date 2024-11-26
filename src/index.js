@@ -132,12 +132,11 @@ const getChapters = async (url, domainConfig) => {
       `${((i + 1) / (chapters.length / 100)).toFixed(2)}% ${chapter}`
     );
 
-    if (argParam.before && chapter.includes(argParam.before)) break;
-
     isActivated = isActivated || chapter.includes(argParam.after);
     if (!isActivated) continue;
 
     await downloadChapter(chapter, domainConfig);
-    await sleep(500);
+
+    if (argParam.before && chapter.includes(argParam.before)) break;
   }
 })();
