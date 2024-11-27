@@ -88,17 +88,19 @@ const downloadImages = async (url, dirPath, config) => {
 
   await goTo(page, url);
 
-  const domLinks = await page.evaluate(
-    (sel) =>
-      Array.from(document.querySelectorAll(sel), (img) =>
-        img.getAttribute("src")
-      ),
-    config.images
-  );
-
   if (config.getImagesFn !== undefined) {
     images = await config.getImagesFn(page);
   } else {
+    await sleep(500);
+    const domLinks = await page.evaluate(
+      (sel) =>
+        Array.from(document.querySelectorAll(sel), (img) =>
+          img.getAttribute("src").trim()
+        ),
+      config.images
+    );
+
+
     const list = new Set();
     for (const link of domLinks) {
       const imgUrl = formatImgLink(link);

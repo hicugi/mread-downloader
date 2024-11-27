@@ -76,6 +76,10 @@ export const domain = {
       return v ? v[1] : chapter;
     },
   },
+  "www.mangaread.org": {
+    chapters: ".page-content-listing .main a[href]",
+    images: ".reading-content img[id^='image']",
+  },
 
   // ru
   "remanga.org": {
